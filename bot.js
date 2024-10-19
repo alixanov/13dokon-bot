@@ -2,15 +2,12 @@ const TelegramBot = require("node-telegram-bot-api");
 const Instrument = require("./module/crud-schema"); // Подключаем твою модель
 const Order = require('./module/order'); // Импортируем модель заказа
 const Review = require('./module/review-schema'); // Импортируем модель для отзывов
-
-
 const axios = require('axios');
-
 // Создаем экземпляр бота с токеном
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-
 // ID чата поддержки
 const supportChatId = 6183727519;  // Твой chat ID
+const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
 
 // Устанавливаем команды для кнопок меню
 bot.setMyCommands([
@@ -19,13 +16,13 @@ bot.setMyCommands([
      { command: '/category', description: 'Поиск по категориям' },
      { command: '/support', description: 'Поддержка' },
      { command: "/myorders", description: "Мои заказы" },
-]);
+     { command: '/recommend', description: 'Рекомендации товаров' }, // Новая команда
 
+]);
 // Хранение сообщений пользователей для поддержки и категорий
 const userMessages = {};
 const waitingForSupportMessage = {};  // Для поддержки
 const waitingForCategoryMessage = {}; // Для категорий
-
 // Обрабатываем команду /start
 bot.onText(/\/start/, (msg) => {
      const startMessage = `
@@ -36,8 +33,15 @@ bot.onText(/\/start/, (msg) => {
 🎧 Приятных покупок!
     `;
 
-     bot.sendMessage(msg.chat.id, startMessage, { parse_mode: 'Markdown' });
+     const imageUrl = dokonlogo
+
+     // Отправляем приветственную картинку с сообщением
+     bot.sendPhoto(msg.chat.id, imageUrl, {
+          caption: startMessage, // Текст приветствия
+          parse_mode: 'Markdown'
+     });
 });
+
 
 // Обрабатываем команду /help для отображения списка команд
 bot.onText(/\/help/, (msg) => {
@@ -56,32 +60,31 @@ bot.onText(/\/help/, (msg) => {
     `;
      bot.sendMessage(msg.chat.id, helpMessage, { parse_mode: 'Markdown' });
 });
+// Хранение состояния категории пользователя
+const userCategoryState = {};
 
-// Обрабатываем команду /products для получения списка товаров
+// Обрабатываем команду /products для отображения категорий
 bot.onText(/\/products/, async (msg) => {
      try {
+          // Получаем все товары с сервера
           const response = await axios.get('http://localhost:8080/api/getall');
           const products = response.data;
 
+          // Если товары есть, начинаем с категорий
           if (products.length > 0) {
-               products.forEach((product) => {
-                    const caption = `
-💼 *${product.nomi}*
+               // Извлекаем уникальные категории (turi)
+               const categories = [...new Set(products.map(p => p.turi))];
 
-💸 *Цена*: ${product.narxi} руб.
+               // Формируем кнопки для категорий
+               const categoryButtons = categories.map(category => {
+                    return [{ text: category, callback_data: `category_${category}` }];
+               });
 
-✅ В наличии: *${product.soni} шт.*
-                `;
-                    bot.sendPhoto(msg.chat.id, product.rasm, {
-                         caption: caption,
-                         parse_mode: 'Markdown',
-                         reply_markup: {
-                              inline_keyboard: [
-                                   [{ text: '🛒 Купить сейчас', callback_data: `buy_${product._id}` }],
-                                   [{ text: '📖 Подробнее', callback_data: `details_${product._id}` }]
-                              ]
-                         }
-                    });
+               // Отправляем сообщение с кнопками категорий
+               bot.sendMessage(msg.chat.id, "Выберите категорию:", {
+                    reply_markup: {
+                         inline_keyboard: categoryButtons
+                    }
                });
           } else {
                bot.sendMessage(msg.chat.id, "К сожалению, товаров нет.");
@@ -91,16 +94,61 @@ bot.onText(/\/products/, async (msg) => {
      }
 });
 
+// Обрабатываем нажатие на категорию
+bot.on('callback_query', async (query) => {
+     const chatId = query.message.chat.id;
+     const data = query.data;
+
+     if (data.startsWith('category_')) {
+          // Извлекаем выбранную категорию
+          const selectedCategory = data.split('_')[1];
+
+          try {
+               // Получаем все товары
+               const response = await axios.get('http://localhost:8080/api/getall');
+               const products = response.data;
+
+               // Фильтруем товары по выбранной категории
+               const filteredProducts = products.filter(product => product.turi === selectedCategory);
+
+               if (filteredProducts.length > 0) {
+                    // Отображаем товары, относящиеся к выбранной категории
+                    filteredProducts.forEach((product) => {
+                         const caption = `
+💼 *${product.nomi}*
+
+📖 *Описание*: ${product.malumoti}
+💸 *Цена*: ${product.narxi} руб.
+✅ В наличии: *${product.soni} шт.*
+                    `;
+                         bot.sendPhoto(chatId, product.rasm, {
+                              caption: caption,
+                              parse_mode: 'Markdown',
+                              reply_markup: {
+                                   inline_keyboard: [
+                                        [{ text: '🛒 Купить сейчас', callback_data: `buy_${product._id}` }],
+                                        [{ text: '📖 Подробнее', callback_data: `details_${product._id}` }]
+                                   ]
+                              }
+                         });
+                    });
+               } else {
+                    bot.sendMessage(chatId, `В категории "${selectedCategory}" нет товаров.`);
+               }
+          } catch (error) {
+               bot.sendMessage(chatId, "Ошибка при получении товаров. Попробуйте позже.");
+          }
+     }
+});
+
 // Хранение ID пользователей, которые отправили сообщения в техподдержку
 const userMessageInfo = {};
-
 // Обрабатываем команду /support для отправки сообщения в техподдержку
 bot.onText(/\/support/, (msg) => {
      const chatId = msg.chat.id;
      bot.sendMessage(chatId, "Пожалуйста, отправьте ваше сообщение, и мы передадим его в техподдержку.");
      waitingForSupportMessage[chatId] = true;
 });
-
 // Обрабатываем все текстовые сообщения для техподдержки
 bot.on('message', (msg) => {
      const chatId = msg.chat.id;
@@ -118,7 +166,6 @@ bot.on('message', (msg) => {
           waitingForSupportMessage[chatId] = false;
      }
 });
-
 // Обрабатываем команду /reply для ответа пользователю
 bot.onText(/\/reply (\d+) (.+)/, (msg, match) => {
      const chatId = match[1];
@@ -126,7 +173,6 @@ bot.onText(/\/reply (\d+) (.+)/, (msg, match) => {
      bot.sendMessage(chatId, `Техподдержка: ${replyText}`);
      bot.sendMessage(supportChatId, `Ваш ответ отправлен пользователю @${userMessageInfo[chatId]?.username || 'неизвестный'} (${chatId}).`);
 });
-
 // Проверка категории
 bot.on('message', (msg) => {
      const chatId = msg.chat.id;
@@ -163,17 +209,14 @@ bot.on('message', (msg) => {
           waitingForCategoryMessage[chatId] = false;
      }
 });
-
 // Обрабатываем команду /category для активации поиска по категории
 bot.onText(/\/category/, (msg) => {
      const chatId = msg.chat.id;
      bot.sendMessage(chatId, "Пожалуйста, введите название категории для поиска.");
      waitingForCategoryMessage[chatId] = true;
 });
-
 // Флаг для ожидания чека
 const waitingForPaymentConfirmation = {};
-
 // Обрабатываем загрузку чека после оплаты
 bot.on('message', (msg) => {
      const chatId = msg.chat.id;
@@ -197,7 +240,6 @@ bot.on('message', (msg) => {
           }
      }
 });
-
 /// Обрабатываем нажатие на кнопку "Подробнее" и отображение отзывов
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -243,8 +285,6 @@ bot.on('callback_query', async (query) => {
           }
      }
 });
-
-
 // Функция для уменьшения количества товара
 async function decreaseProductQuantity(productId, amount) {
      try {
@@ -272,9 +312,6 @@ async function decreaseProductQuantity(productId, amount) {
           return false; // Ошибка
      }
 }
-
-
-
 // Обрабатываем нажатие на кнопку "Купить"
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -292,22 +329,22 @@ bot.on('callback_query', async (query) => {
 🛒 *Ваш заказ подтвержден!*
 Вы выбрали *${product.nomi}* за *${product.narxi} руб.*
 Выберите способ оплаты:
-                `;
+                    `;
 
                     // Проверяем наличие товара и уменьшаем количество
-                    const success = await decreaseProductQuantity(productId, 1); // Вычитаем 1 товар
+                    const success = await decreaseProductQuantity(productId, 1);
 
                     if (success) {
                          // Сохраняем заказ в базе данных
                          const newOrder = new Order({
-                              userId: chatId, // ID пользователя
-                              productId: product._id, // ID товара
-                              productName: product.nomi, // Название товара
-                              quantity: 1, // Количество
-                              price: product.narxi // Цена
+                              userId: chatId,
+                              productId: product._id,
+                              productName: product.nomi,
+                              quantity: 1,
+                              price: product.narxi
                          });
 
-                         await newOrder.save(); // Сохраняем заказ в MongoDB
+                         await newOrder.save();
 
                          // Отправляем сообщение пользователю с выбором оплаты
                          bot.sendMessage(chatId, confirmationMessage, {
@@ -315,12 +352,12 @@ bot.on('callback_query', async (query) => {
                               reply_markup: {
                                    inline_keyboard: [
                                         [{ text: '💳 Оплатить картой', callback_data: `pay_card_${productId}_${product.narxi}` }],
-                                        [{ text: '💸 Оплатить через TON', callback_data: `pay_ton_${productId}_${product.narxi}` }]
+                                        [{ text: '💸 Оплатить через TON', callback_data: `pay_ton_${productId}_${product.narxi}` }],
+                                        [{ text: '💵 Оплатить через Webmoney', callback_data: `pay_webmoney_${productId}_${product.narxi}` }]
                                    ]
                               }
                          });
                     } else {
-                         // Если товара недостаточно, отправляем сообщение
                          bot.sendMessage(chatId, "К сожалению, недостаточно товара на складе.");
                     }
                } else {
@@ -339,8 +376,7 @@ bot.on('callback_query', (query) => {
      if (data.startsWith('pay_card_')) {
           // Оплата картой
           const parts = data.split('_');
-          const productId = parts[2];  // ID товара
-          const amount = parts[3];     // Сумма в рублях
+          const amount = parts[3];
 
           bot.sendMessage(chatId, `
 💳 Вы выбрали оплату картой.
@@ -355,26 +391,50 @@ bot.on('callback_query', (query) => {
 После оплаты, отправьте фото чека.
         `, { parse_mode: 'Markdown' });
 
-          // Устанавливаем флаг ожидания чека
           waitingForPaymentConfirmation[chatId] = true;
 
      } else if (data.startsWith('pay_ton_')) {
           // Оплата через TON
           const parts = data.split('_');
-          const productId = parts[2];  // ID товара
-          const tonAmount = parts[3];  // Сумма в TON
+          const productId = parts[2];
+
+          Instrument.findById(productId)
+               .then(product => {
+                    if (product) {
+                         const tonAmount = product.ton;
+
+                         bot.sendMessage(chatId, `
+💸 Вы выбрали оплату через TON.
+Сумма к оплате: *${tonAmount} TON*
+Пожалуйста, переведите сумму на следующие реквизиты:
+
+🪙 TON Wallet: UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYP
+После оплаты, отправьте фото чека.
+                         `, { parse_mode: 'Markdown' });
+
+                         waitingForPaymentConfirmation[chatId] = true;
+                    } else {
+                         bot.sendMessage(chatId, "Ошибка: товар не найден.");
+                    }
+               })
+               .catch(error => {
+                    bot.sendMessage(chatId, "Ошибка при обработке оплаты. Попробуйте снова.");
+               });
+     } else if (data.startsWith('pay_webmoney_')) {
+          // Оплата через Webmoney
+          const parts = data.split('_');
+          const amount = parts[3];
 
           bot.sendMessage(chatId, `
-💸 Вы выбрали оплату через TON.
-Сумма к оплате: *${tonAmount} TON*.
-Переведите сумму на TON-кошелек:
+💸 Вы выбрали оплату через Webmoney.
+Сумма к оплате: *${amount} руб.*
+Пожалуйста, переведите сумму на следующие реквизиты:
 
-🪙 *TON Wallet*: UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYPY
+💰 *Webmoney*: Z990037980848
 
 После оплаты, отправьте фото чека.
         `, { parse_mode: 'Markdown' });
 
-          // Устанавливаем флаг ожидания чека
           waitingForPaymentConfirmation[chatId] = true;
      }
 });
@@ -387,7 +447,6 @@ function generateOrderNumber() {
      const randomNum = Math.floor(100000 + Math.random() * 900000);
      return `${prefix}-${randomNum}`;
 }
-
 // Обрабатываем нажатие на кнопку подтверждения или отклонения платежа
 bot.on('callback_query', async (query) => {
      const data = query.data;
@@ -428,32 +487,25 @@ bot.on('callback_query', async (query) => {
           bot.sendMessage(adminChatId, `Платёж для пользователя ${userId} отклонён.`);
      }
 });
-
-
-
 // Обработчик команды /myorders для отображения списка покупок с кнопкой "Добавить отзыв"
 bot.onText(/\/myorders/, async (msg) => {
      const chatId = msg.chat.id;
-
      try {
           // Ищем заказы пользователя по его ID (chatId)
           const orders = await Order.find({ userId: chatId }).populate('productId');
-
           // Проверяем, есть ли заказы
           if (orders.length > 0) {
                let buttons = [];
-
                // Перебираем каждый заказ и создаём кнопки
-               orders.forEach((order) => {
+               orders.forEach((order, index) => {
                     if (order.productId) {
-                         // Кнопка с названием продукта и кнопка для добавления отзыва справа
+                         // Кнопка с порядковым номером, названием продукта и кнопка для добавления отзыва справа
                          buttons.push([
-                              { text: `${order.productId.nomi}`, callback_data: `details_${order.productId._id}` },  // Название продукта
-                              { text: `✏️ Добавить отзыв`, callback_data: `add_review_${order.productId._id}` }    // Кнопка для отзыва
+                              { text: `${index + 1}. ${order.productId.nomi}`, callback_data: `details_${order.productId._id}` },  // Порядковый номер и название продукта
+                              { text: `Отзыв📝`, callback_data: `add_review_${order.productId._id}` }    // Кнопка для отзыва
                          ]);
                     }
                });
-
                // Отправляем сообщение с кнопками для каждого продукта
                bot.sendMessage(chatId, "Ваши покупки:", {
                     reply_markup: {
@@ -468,11 +520,8 @@ bot.onText(/\/myorders/, async (msg) => {
           bot.sendMessage(chatId, "Ошибка при получении списка покупок. Попробуйте снова.");
      }
 });
-
-
 // Хранение состояния для ожидания отзыва
 const waitingForReview = {};
-
 // Обработка нажатия на кнопку "Посмотреть отзывы"
 bot.on('callback_query', async (query) => {
      const data = query.data;
@@ -497,9 +546,6 @@ bot.on('callback_query', async (query) => {
           }
      }
 });
-
-
-
 // Обработка нажатия на кнопку "Добавить отзыв"
 bot.on('callback_query', (query) => {
      const data = query.data;
@@ -515,8 +561,6 @@ bot.on('callback_query', (query) => {
           waitingForReview[chatId] = productId;
      }
 });
-
-
 // Обработка текста отзыва
 bot.on('message', async (msg) => {
      const chatId = msg.chat.id;
@@ -553,12 +597,6 @@ bot.on('message', async (msg) => {
           delete waitingForReview[chatId];
      }
 });
-
-
-
-
-
-
 // Обработчик команды /review для добавления отзыва
 bot.onText(/\/review (\w+) (.+)/, async (msg, match) => {
      const chatId = msg.chat.id;
@@ -588,16 +626,53 @@ bot.onText(/\/review (\w+) (.+)/, async (msg, match) => {
      }
 });
 
+// Функция для рекомендации товаров
+async function recommendProducts(userId) {
+     try {
+          const response = await axios.get('http://localhost:8080/api/getall');
+          const products = response.data;
+
+          // Логика для фильтрации товаров (например, те же категории, что и предыдущие покупки)
+          const recommendedProducts = products.filter(p => p.turi === 'Терменвокс' || p.narxi < 500); // пример фильтрации
+
+          if (recommendedProducts.length > 0) {
+               return recommendedProducts;
+          } else {
+               return null;
+          }
+     } catch (error) {
+          console.error("Ошибка рекомендаций:", error);
+          return null;
+     }
+}
+
+// Команда для получения рекомендаций
+bot.onText(/\/recommend/, async (msg) => {
+     const chatId = msg.chat.id;
+
+     // Вызов функции рекомендаций для пользователя
+     const recommendations = await recommendProducts(chatId);
+
+     if (recommendations) {
+          // Отправляем пользователю рекомендации
+          recommendations.forEach(product => {
+               const caption = `🎉 *Рекомендуем вам:* ${product.nomi}\n💸 Цена: ${product.narxi} руб.`;
+               bot.sendPhoto(chatId, product.rasm, { caption: caption, parse_mode: 'Markdown' });
+          });
+     } else {
+          bot.sendMessage(chatId, "Извините, нет подходящих рекомендаций на данный момент.");
+     }
+});
+
+
 // Пример функции для сохранения отзыва в базе данных
 function addReviewToDatabase(productId, userId, review) {
      console.log(`Новый отзыв: продукт ${productId}, от пользователя ${userId}: ${review}`);
 }
-
 // Обновление статуса заказа (пример функции)
 function updateOrderStatus(userId, status, orderNumber) {
      console.log(`Статус заказа для пользователя ${userId} обновлён на: ${status}, Номер заказа: ${orderNumber || 'нет номера'}`);
 }
-
 function updateOrderStatus(userId, status) {
      console.log(`Статус заказа для пользователя ${userId} обновлён на: ${status}`);
 }
