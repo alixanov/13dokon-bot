@@ -431,29 +431,131 @@ bot.on('callback_query', async (query) => {
 
 
 
-// Обработчик команды /myorders для отображения списка покупок
+// Обработчик команды /myorders для отображения списка покупок с кнопкой "Добавить отзыв"
 bot.onText(/\/myorders/, async (msg) => {
-    const chatId = msg.chat.id;
+     const chatId = msg.chat.id;
 
-    try {
-        // Ищем заказы пользователя по его ID (chatId)
-        const orders = await Order.find({ userId: chatId }).populate('productId');
+     try {
+          // Ищем заказы пользователя по его ID (chatId)
+          const orders = await Order.find({ userId: chatId }).populate('productId');
 
-        if (orders.length > 0) {
-            let orderList = "🛒 *Ваши успешные покупки:*\n\n";
+          // Проверяем, есть ли заказы
+          if (orders.length > 0) {
+               let buttons = [];
 
-            orders.forEach((order, index) => {
-                orderList += `${index + 1}. ${order.productName} (Количество: ${order.quantity}, Цена: ${order.price} руб.) - Куплено: ${order.orderDate.toLocaleDateString()}\n\n`;
-            });
+               // Перебираем каждый заказ и создаём кнопки
+               orders.forEach((order) => {
+                    if (order.productId) {
+                         // Кнопка с названием продукта и кнопка для добавления отзыва справа
+                         buttons.push([
+                              { text: `${order.productId.nomi}`, callback_data: `details_${order.productId._id}` },  // Название продукта
+                              { text: `✏️ Добавить отзыв`, callback_data: `add_review_${order.productId._id}` }    // Кнопка для отзыва
+                         ]);
+                    }
+               });
 
-            bot.sendMessage(chatId, orderList, { parse_mode: 'Markdown' });
-        } else {
-            bot.sendMessage(chatId, "Вы ещё не сделали успешных покупок.");
-        }
-    } catch (error) {
-        bot.sendMessage(chatId, "Ошибка при получении списка покупок. Попробуйте снова.");
-    }
+               // Отправляем сообщение с кнопками для каждого продукта
+               bot.sendMessage(chatId, "Ваши покупки:", {
+                    reply_markup: {
+                         inline_keyboard: buttons
+                    }
+               });
+          } else {
+               bot.sendMessage(chatId, "У вас пока нет покупок.");
+          }
+     } catch (error) {
+          console.error("Ошибка при получении списка покупок:", error);
+          bot.sendMessage(chatId, "Ошибка при получении списка покупок. Попробуйте снова.");
+     }
 });
+
+
+// Хранение состояния для ожидания отзыва
+const waitingForReview = {};
+
+// Обработка нажатия на кнопку "Посмотреть отзывы"
+bot.on('callback_query', async (query) => {
+     const data = query.data;
+
+     if (data.startsWith('view_reviews_')) {
+          const productId = data.split('_')[2];
+          const chatId = query.message.chat.id;
+
+          // Получаем отзывы для продукта
+          try {
+               const reviews = await Review.find({ productId: productId });
+
+               if (reviews.length > 0) {
+                    let reviewList = reviews.map((review, index) => `${index + 1}. ${review.reviewText} — ${review.reviewDate.toLocaleDateString()}`).join('\n');
+
+                    bot.sendMessage(chatId, `Отзывы:\n\n${reviewList}`, { parse_mode: 'Markdown' });
+               } else {
+                    bot.sendMessage(chatId, "Отзывов пока нет.");
+               }
+          } catch (error) {
+               bot.sendMessage(chatId, "Ошибка при получении отзывов. Попробуйте снова.");
+          }
+     }
+});
+
+
+
+// Обработка нажатия на кнопку "Добавить отзыв"
+bot.on('callback_query', (query) => {
+     const data = query.data;
+
+     if (data.startsWith('add_review_')) {
+          const productId = data.split('_')[2];
+          const chatId = query.message.chat.id;
+
+          // Предлагаем пользователю написать отзыв
+          bot.sendMessage(chatId, `Напишите ваш отзыв о продукте ${productId}.`);
+
+          // Сохраняем состояние ожидания отзыва для этого пользователя
+          waitingForReview[chatId] = productId;
+     }
+});
+
+
+// Обработка текста отзыва
+bot.on('message', async (msg) => {
+     const chatId = msg.chat.id;
+
+     // Проверяем, находится ли пользователь в состоянии ожидания отзыва
+     if (waitingForReview[chatId]) {
+          const productId = waitingForReview[chatId];
+          const reviewText = msg.text; // Получаем текст отзыва
+
+          try {
+               // Проверяем, купил ли пользователь этот продукт
+               const purchasedProduct = await Order.findOne({ userId: chatId, productId });
+
+               if (purchasedProduct) {
+                    // Создаем и сохраняем новый отзыв
+                    const newReview = new Review({
+                         userId: chatId,
+                         productId: productId,
+                         reviewText: reviewText,
+                         reviewDate: new Date() // Дата отзыва
+                    });
+
+                    await newReview.save();
+
+                    bot.sendMessage(chatId, "Спасибо за ваш отзыв!");
+               } else {
+                    bot.sendMessage(chatId, "Вы не можете оставить отзыв на этот продукт, так как не покупали его.");
+               }
+          } catch (error) {
+               bot.sendMessage(chatId, "Ошибка при сохранении отзыва. Попробуйте снова.");
+          }
+
+          // Очищаем состояние ожидания отзыва
+          delete waitingForReview[chatId];
+     }
+});
+
+
+
 
 
 
