@@ -79,7 +79,7 @@ const userCategoryState = {};
 bot.onText(/\/products/, async (msg) => {
      try {
           // Получаем все товары с сервера
-          const response = await axios.get('http://localhost:8080/api/getall');
+          const response = await axios.get('https://13dokon-server.vercel.app/api/getall');
           const products = response.data;
 
           // Если товары есть, начинаем с категорий
