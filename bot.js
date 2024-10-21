@@ -8,7 +8,6 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 // ID чата поддержки
 const supportChatId = 6183727519;  // Твой chat ID
 const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
-
 // Устанавливаем команды для кнопок меню
 bot.setMyCommands([
      { command: '/start', description: 'Начать работу' },
@@ -43,8 +42,6 @@ bot.onText(/\/start/, (msg) => {
           parse_mode: 'Markdown'
      });
 });
-
-
 // Устанавливаем команды для кнопок меню
 bot.setMyCommands([
      { command: '/start', description: 'Начать работу' },
@@ -54,7 +51,6 @@ bot.setMyCommands([
      { command: "/myorders", description: "Мои заказы" }, // Команда для просмотра заказов
      { command: '/recommend', description: 'Рекомендации товаров' }, // Новая команда
 ]);
-
 // Обрабатываем команду /help для отображения списка команд
 bot.onText(/\/help/, (msg) => {
      const helpMessage = `
@@ -77,10 +73,8 @@ bot.onText(/\/help/, (msg) => {
     `;
      bot.sendMessage(msg.chat.id, helpMessage, { parse_mode: 'Markdown' });
 });
-
 // Хранение состояния категории пользователя
 const userCategoryState = {};
-
 // Обрабатываем команду /products для отображения категорий
 bot.onText(/\/products/, async (msg) => {
      try {
@@ -111,7 +105,6 @@ bot.onText(/\/products/, async (msg) => {
           bot.sendMessage(msg.chat.id, "Ошибка при получении списка товаров. Проверьте, что API работает.");
      }
 });
-
 // Обрабатываем нажатие на категорию
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -158,7 +151,6 @@ bot.on('callback_query', async (query) => {
           }
      }
 });
-
 // Хранение ID пользователей, которые отправили сообщения в техподдержку
 const userMessageInfo = {};
 // Обрабатываем команду /support для отправки сообщения в техподдержку
@@ -456,7 +448,6 @@ bot.on('callback_query', (query) => {
           waitingForPaymentConfirmation[chatId] = true;
      }
 });
-
 // Хранение успешных покупок пользователей
 const userOrders = {};
 // Функция для генерации случайного номера заказа
@@ -643,7 +634,6 @@ bot.onText(/\/review (\w+) (.+)/, async (msg, match) => {
           bot.sendMessage(chatId, "Ошибка при сохранении отзыва. Попробуйте снова.");
      }
 });
-
 // Функция для рекомендации товаров
 async function recommendProducts(userId) {
      try {
@@ -663,7 +653,6 @@ async function recommendProducts(userId) {
           return null;
      }
 }
-
 // Команда для получения рекомендаций
 bot.onText(/\/recommend/, async (msg) => {
      const chatId = msg.chat.id;
@@ -681,8 +670,6 @@ bot.onText(/\/recommend/, async (msg) => {
           bot.sendMessage(chatId, "Извините, нет подходящих рекомендаций на данный момент.");
      }
 });
-
-
 // Пример функции для сохранения отзыва в базе данных
 function addReviewToDatabase(productId, userId, review) {
      console.log(`Новый отзыв: продукт ${productId}, от пользователя ${userId}: ${review}`);
