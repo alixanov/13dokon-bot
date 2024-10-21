@@ -24,6 +24,9 @@ bot.setMyCommands([
 const userMessages = {};
 const waitingForSupportMessage = {};  // Для поддержки
 const waitingForCategoryMessage = {}; // Для категорий
+
+
+
 // Обрабатываем команду /start
 bot.onText(/\/start/, (msg) => {
      const startMessage = `
