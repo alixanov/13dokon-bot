@@ -9,16 +9,15 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 const supportChatId = 6183727519;  // Твой chat ID
 const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
 // Устанавливаем команды для кнопок меню
+// Устанавливаем команды для кнопок меню
 bot.setMyCommands([
      { command: '/start', description: 'Начать работу' },
      { command: '/products', description: 'Каталог товаров' },
      { command: '/category', description: 'Поиск по категориям' },
      { command: '/support', description: 'Поддержка' },
-     { command: "/myorders", description: "Мои заказы" },
-     { command: '/recommend', description: 'Рекомендации товаров' }, // Новая команда
-     { command: '/help', description: 'Помощь' }, // Новая команда
+     { command: '/myorders', description: 'Мои заказы' },
+     { command: '/recommend', description: 'Рекомендации товаров' },
      { command: '/contact', description: 'Контакт администратора' }, // Новая команда
-
 ]);
 // Хранение сообщений пользователей для поддержки и категорий
 const userMessages = {};
@@ -53,16 +52,6 @@ bot.setMyCommands([
      { command: '/support', description: 'Поддержка' },
      { command: "/myorders", description: "Мои заказы" }, // Команда для просмотра заказов
      { command: '/recommend', description: 'Рекомендации товаров' }, // Новая команда
-]);
-// Устанавливаем команды для кнопок меню
-bot.setMyCommands([
-     { command: '/start', description: 'Начать работу' },
-     { command: '/products', description: 'Каталог товаров' },
-     { command: '/category', description: 'Поиск по категориям' },
-     { command: '/support', description: 'Поддержка' },
-     { command: '/myorders', description: 'Мои заказы' },
-     { command: '/recommend', description: 'Рекомендации товаров' },
-     { command: '/contact', description: 'Контакт администратора' }, // Новая команда
 ]);
 
 // Обрабатываем команду /help для отображения списка команд
