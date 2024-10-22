@@ -9,7 +9,6 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 const supportChatId = 6183727519;  // Твой chat ID
 const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
 // Устанавливаем команды для кнопок меню
-// Устанавливаем команды для кнопок меню
 bot.setMyCommands([
      { command: '/start', description: 'Начать работу' },
      { command: '/products', description: 'Каталог товаров' },
@@ -17,15 +16,13 @@ bot.setMyCommands([
      { command: '/support', description: 'Поддержка' },
      { command: '/myorders', description: 'Мои заказы' },
      { command: '/recommend', description: 'Рекомендации товаров' },
+     { command: '/help', description: 'Помощь' },
      { command: '/contact', description: 'Контакт администратора' }, // Новая команда
 ]);
 // Хранение сообщений пользователей для поддержки и категорий
 const userMessages = {};
 const waitingForSupportMessage = {};  // Для поддержки
 const waitingForCategoryMessage = {}; // Для категорий
-
-
-
 // Обрабатываем команду /start
 bot.onText(/\/start/, (msg) => {
      const startMessage = `
@@ -53,7 +50,6 @@ bot.setMyCommands([
      { command: "/myorders", description: "Мои заказы" }, // Команда для просмотра заказов
      { command: '/recommend', description: 'Рекомендации товаров' }, // Новая команда
 ]);
-
 // Обрабатываем команду /help для отображения списка команд
 bot.on('message', (msg) => {
      const chatId = msg.chat.id;
@@ -80,7 +76,6 @@ bot.on('message', (msg) => {
           bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
      }
 });
-
 // Хранение состояния категории пользователя
 const userCategoryState = {};
 // Обрабатываем команду /products для отображения категорий
@@ -679,22 +674,26 @@ async function recommendProducts(userId) {
      }
 }
 // Команда для получения рекомендаций
-bot.onText(/\/recommend/, async (msg) => {
+bot.on('message', async (msg) => {
      const chatId = msg.chat.id;
 
-     // Вызов функции рекомендаций для пользователя
-     const recommendations = await recommendProducts(chatId);
+     // Проверяем, если команда /recommend
+     if (msg.text === '/recommend') {
+          // Вызов функции рекомендаций для пользователя
+          const recommendations = await recommendProducts(chatId);
 
-     if (recommendations) {
-          // Отправляем пользователю рекомендации
-          recommendations.forEach(product => {
-               const caption = `🎉 *Рекомендуем вам:* ${product.nomi}\n💸 Цена: ${product.narxi} руб.`;
-               bot.sendPhoto(chatId, product.rasm, { caption: caption, parse_mode: 'Markdown' });
-          });
-     } else {
-          bot.sendMessage(chatId, "Извините, нет подходящих рекомендаций на данный момент.");
+          if (recommendations) {
+               // Отправляем пользователю рекомендации
+               recommendations.forEach(product => {
+                    const caption = `🎉 *Рекомендуем вам:* ${product.nomi}\n💸 Цена: ${product.narxi} руб.`;
+                    bot.sendPhoto(chatId, product.rasm, { caption: caption, parse_mode: 'Markdown' });
+               });
+          } else {
+               bot.sendMessage(chatId, "Извините, нет подходящих рекомендаций на данный момент.");
+          }
      }
 });
+
 // Пример функции для сохранения отзыва в базе данных
 function addReviewToDatabase(productId, userId, review) {
      console.log(`Новый отзыв: продукт ${productId}, от пользователя ${userId}: ${review}`);
