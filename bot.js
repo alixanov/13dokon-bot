@@ -638,19 +638,22 @@ bot.onText(/\/review (\w+) (.+)/, async (msg, match) => {
      }
 });
 // Обрабатываем команду /contact для отображения контакта администратора
-bot.onText(/\/contact/, (msg) => {
-     const contactMessage = `
+bot.on('message', (msg) => {
+     if (msg.text === '/contact') {
+          const contactMessage = `
 📞 *Контакты администратора*:
 
 Если у вас есть вопросы или предложения, свяжитесь с администратором:
 
-📱 *Телефон*: +998 940 751 313  
+📱 *Телефон*: +998 94 075 13 13  
 💬 *Telegram*: [Написать в Telegram](https://t.me/alikhanov13)
 
 Мы всегда на связи и готовы помочь вам! 😊
-    `;
-     bot.sendMessage(msg.chat.id, contactMessage, { parse_mode: 'Markdown' });
+        `;
+          bot.sendMessage(msg.chat.id, contactMessage, { parse_mode: 'Markdown' });
+     }
 });
+
 // Функция для рекомендации товаров
 async function recommendProducts(userId) {
      try {
