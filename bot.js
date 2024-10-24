@@ -8,6 +8,7 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 // ID чата поддержки
 const supportChatId = 6183727519;  // Твой chat ID
 const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
+const btc = "./assets/btc.jpg"
 // Устанавливаем команды для кнопок меню
 bot.setMyCommands([
      { command: '/start', description: 'Начать работу' },
@@ -328,6 +329,9 @@ async function decreaseProductQuantity(productId, amount) {
           return false; // Ошибка
      }
 }
+
+
+
 // Обрабатываем нажатие на кнопку "Купить"
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -345,7 +349,7 @@ bot.on('callback_query', async (query) => {
 🛒 *Ваш заказ подтвержден!*
 Вы выбрали *${product.nomi}* за *${product.narxi} руб.*
 Выберите способ оплаты:
-                    `;
+                `;
 
                     // Проверяем наличие товара и уменьшаем количество
                     const success = await decreaseProductQuantity(productId, 1);
@@ -367,9 +371,8 @@ bot.on('callback_query', async (query) => {
                               parse_mode: 'Markdown',
                               reply_markup: {
                                    inline_keyboard: [
-                                        [{ text: '💳 Оплатить картой', callback_data: `pay_card_${productId}_${product.narxi}` }],
-                                        [{ text: '💸 Оплатить через TON', callback_data: `pay_ton_${productId}_${product.narxi}` }],
-                                        [{ text: '💵 Оплатить через Webmoney', callback_data: `pay_webmoney_${productId}_${product.narxi}` }]
+                                        [{ text: '🪙 Оплатить через Bitcoin', callback_data: `pay_btc_${productId}_${product.narxi}` }],
+                                        [{ text: '💎 Оплатить через TON', callback_data: `pay_ton_${productId}_${product.narxi}` }]
                                    ]
                               }
                          });
@@ -384,31 +387,36 @@ bot.on('callback_query', async (query) => {
           }
      }
 });
+
 // Обработка выбора метода оплаты
-bot.on('callback_query', (query) => {
+bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
      const data = query.data;
 
-     if (data.startsWith('pay_card_')) {
-          // Оплата картой
+     if (data.startsWith('pay_btc_')) {
+          // Оплата через Bitcoin
           const parts = data.split('_');
           const amount = parts[3];
 
-          bot.sendMessage(chatId, `
-💳 Вы выбрали оплату картой.
-Сумма к оплате: *${amount} руб.*
-Пожалуйста, переведите сумму на следующие реквизиты:
+          const bitcoinAddress = "1PKgMfJbyo7CRZPgkgR3HYBVedEsrDvdSv";
+          const btcQrCodePath = "./assets/btc.jpg";
 
-🏦 *Владелец*: SHUKURULLO ALIXONOV
-🏦 *МФО*: 00873
-💳 *Номер карты*: 5189 6900 6672 1176
-📅 *Срок действия*: 09/25
 
+
+          // Отправляем готовый QR-код с более креативной подписью
+          bot.sendPhoto(chatId, btcQrCodePath, {
+               caption: `
+🪙 *Вы выбрали оплату через Bitcoin*
+💰 Сумма к оплате: *${amount} BTC*
+📥 Адрес: \`${bitcoinAddress}\`
+
+🔍 Сканируйте этот QR-код для оплаты.
 После оплаты, отправьте фото чека.
-        `, { parse_mode: 'Markdown' });
+            `,
+               parse_mode: 'Markdown'
+          });
 
           waitingForPaymentConfirmation[chatId] = true;
-
      } else if (data.startsWith('pay_ton_')) {
           // Оплата через TON
           const parts = data.split('_');
@@ -420,13 +428,14 @@ bot.on('callback_query', (query) => {
                          const tonAmount = product.ton;
 
                          bot.sendMessage(chatId, `
-💸 Вы выбрали оплату через TON.
+💸 *Вы выбрали оплату через TON.*
 Сумма к оплате: *${tonAmount} TON*
 Пожалуйста, переведите сумму на следующие реквизиты:
 
-🪙 TON Wallet: UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYP
+🪙 *TON Wallet*: UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYP
+
 После оплаты, отправьте фото чека.
-                         `, { parse_mode: 'Markdown' });
+                    `, { parse_mode: 'Markdown' });
 
                          waitingForPaymentConfirmation[chatId] = true;
                     } else {
@@ -436,24 +445,11 @@ bot.on('callback_query', (query) => {
                .catch(error => {
                     bot.sendMessage(chatId, "Ошибка при обработке оплаты. Попробуйте снова.");
                });
-     } else if (data.startsWith('pay_webmoney_')) {
-          // Оплата через Webmoney
-          const parts = data.split('_');
-          const amount = parts[3];
-
-          bot.sendMessage(chatId, `
-💸 Вы выбрали оплату через Webmoney.
-Сумма к оплате: *${amount} руб.*
-Пожалуйста, переведите сумму на следующие реквизиты:
-
-💰 *Webmoney*: Z990037980848
-
-После оплаты, отправьте фото чека.
-        `, { parse_mode: 'Markdown' });
-
-          waitingForPaymentConfirmation[chatId] = true;
      }
 });
+
+
+
 // Хранение успешных покупок пользователей
 const userOrders = {};
 // Функция для генерации случайного номера заказа
