@@ -8,7 +8,10 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 // ID чата поддержки
 const supportChatId = 6183727519;  // Твой chat ID
 const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
-const btc = "./assets/btc.jpg"
+const QRCode = require('qrcode'); // Убедитесь, что установлен модуль qrcode
+
+
+
 // Устанавливаем команды для кнопок меню
 bot.setMyCommands([
      { command: '/start', description: 'Начать работу' },
@@ -24,36 +27,40 @@ bot.setMyCommands([
 const userMessages = {};
 const waitingForSupportMessage = {};  // Для поддержки
 const waitingForCategoryMessage = {}; // Для категорий
-// Обрабатываем команду /start
-bot.onText(/\/start/, (msg) => {
+// Универсальная функция для отправки приветственного сообщения
+async function sendWelcomeMessage(chatId, userName) {
      const startMessage = `
-🎵 *Добро пожаловать в магазин звука, ${msg.from.first_name ? msg.from.first_name.replace(/[_*[\]()]/g, '\\$&') : 'друг'}!* 
+🎵 *Добро пожаловать в магазин звука, ${userName}!* 
 
 Здесь каждый найдёт свою ноту.
 
 🎧 Приятных покупок!
     `;
 
-     const imageUrl = dokonlogo; // Убедитесь, что dokonlogo определен и содержит корректный URL
-
-     // Отправляем приветственную картинку с сообщением
-     bot.sendPhoto(msg.chat.id, imageUrl, {
-          caption: startMessage, // Текст приветствия
-          parse_mode: 'Markdown' // Используйте 'MarkdownV2', если хотите расширенные возможности
-     }).catch(err => {
+     try {
+          // Проверяем наличие изображения и отправляем его с текстом
+          if (dokonlogo) {
+               await bot.sendPhoto(chatId, dokonlogo, {
+                    caption: startMessage,
+                    parse_mode: 'Markdown'
+               });
+          } else {
+               // Если изображение отсутствует, отправляем только текст
+               await bot.sendMessage(chatId, startMessage, { parse_mode: 'Markdown' });
+          }
+     } catch (err) {
           console.error('Ошибка при отправке фото:', err);
-     });
+          // В случае ошибки отправляем только текстё
+          await bot.sendMessage(chatId, startMessage, { parse_mode: 'Markdown' });
+     }
+}
+
+// Обрабатываем команду /start
+bot.onText(/\/start/, (msg) => {
+     const userName = msg.from.first_name ? msg.from.first_name.replace(/[_*[\]()]/g, '\\$&') : 'друг';
+     sendWelcomeMessage(msg.chat.id, userName); // Вызываем универсальную функцию
 });
 
-// Устанавливаем команды для кнопок меню
-bot.setMyCommands([
-     { command: '/start', description: 'Начать работу' },
-     { command: '/products', description: 'Каталог товаров' },
-     { command: '/category', description: 'Поиск по категориям' },
-     { command: '/support', description: 'Поддержка' },
-     { command: "/myorders", description: "Мои заказы" }, // Команда для просмотра заказов
-     { command: '/recommend', description: 'Рекомендации товаров' }, // Новая команда
-]);
 // Обрабатываем команду /help для отображения списка команд
 bot.on('message', (msg) => {
      const chatId = msg.chat.id;
@@ -388,61 +395,60 @@ bot.on('callback_query', async (query) => {
      }
 });
 
+
+
 // Обработка выбора метода оплаты
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
      const data = query.data;
 
      if (data.startsWith('pay_btc_')) {
-          // Оплата через Bitcoin
           const parts = data.split('_');
           const amount = parts[3];
+          const litecoinAddress = "ltc1qqjz9xlguz4rxhvahgnsuwrv0parxqq5ksl7grz";
 
-          const bitcoinAddress = "1PKgMfJbyo7CRZPgkgR3HYBVedEsrDvdSv";
-          const btcQrCodePath = "./assets/btc.jpg";
+          await bot.sendMessage(chatId, `
+💼 *Платеж через Litecoin*
+━━━━━━━━━━━━━━━
+💵 **Сумма:** \`${amount} LTC\`
+📥 **Адрес:** \`${litecoinAddress}\`
 
-
-
-          // Отправляем готовый QR-код с более креативной подписью
-          bot.sendPhoto(chatId, btcQrCodePath, {
-               caption: `
-🪙 *Вы выбрали оплату через Bitcoin*
-💰 Сумма к оплате: *${amount} BTC*
-📥 Адрес: \`${bitcoinAddress}\`
-
-🔍 Сканируйте этот QR-код для оплаты.
-После оплаты, отправьте фото чека.
-            `,
-               parse_mode: 'Markdown'
-          });
+📝 _По завершении отправьте фото квитанции для подтверждения._
+━━━━━━━━━━━━━━━
+✨ _Будьте внимательны: проверяйте сумму и адрес._
+          `, { parse_mode: 'Markdown' });
 
           waitingForPaymentConfirmation[chatId] = true;
+
      } else if (data.startsWith('pay_ton_')) {
-          // Оплата через TON
           const parts = data.split('_');
           const productId = parts[2];
 
           Instrument.findById(productId)
-               .then(product => {
+               .then(async (product) => {
                     if (product) {
                          const tonAmount = product.ton;
+                         const tonWallet = "UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYPY";
 
-                         bot.sendMessage(chatId, `
-💸 *Вы выбрали оплату через TON.*
-Сумма к оплате: *${tonAmount} TON*
-Пожалуйста, переведите сумму на следующие реквизиты:
+                         await bot.sendMessage(chatId, `
+💼 *TON Кошелек для оплаты*
+━━━━━━━━━━━━━━━
+💵 **Сумма:** \`${tonAmount} TON\`
+📥 **TON Адрес:** \`${tonWallet}\`
 
-🪙 *TON Wallet*: UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYP
-
-После оплаты, отправьте фото чека.
-                    `, { parse_mode: 'Markdown' });
+📝 _После оплаты отправьте фото квитанции для подтверждения._
+━━━━━━━━━━━━━━━
+✨ _Проверьте адрес и сумму перед отправкой._
+                         `, { parse_mode: 'Markdown' });
 
                          waitingForPaymentConfirmation[chatId] = true;
+
                     } else {
-                         bot.sendMessage(chatId, "Ошибка: товар не найден.");
+                         await bot.sendMessage(chatId, "Ошибка: товар не найден.");
                     }
                })
                .catch(error => {
+                    console.error('Ошибка при обработке платежа:', error);
                     bot.sendMessage(chatId, "Ошибка при обработке оплаты. Попробуйте снова.");
                });
      }
