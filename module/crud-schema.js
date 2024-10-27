@@ -10,27 +10,25 @@ const InstrumentSchema = new Schema({
           required: true,
      },
      malumoti: {
-          type: String, // Измените на Number
+          type: String,
           required: true,
      },
      turi: {
-          type: String, // Измените на Number
+          type: String,
           required: true,
      },
      soni: {
-          type: Number, // Измените на Number
+          type: Number,
           required: true,
      },
-
      narxi: {
-          type: Number, // Измените на Number
+          type: String,
           required: true,
      },
      ton: {
-          type: Number, // Измените на Number
+          type: String,
           required: true,
      },
-
 });
 
 module.exports = model("InstrumentSchema", InstrumentSchema); // Убедитесь, что нет пробела в названии модели

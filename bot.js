@@ -21,7 +21,6 @@ bot.setMyCommands([
      { command: '/myorders', description: 'Мои заказы' },
      { command: '/recommend', description: 'Рекомендации товаров' },
      { command: '/help', description: 'Помощь' },
-     { command: '/contact', description: 'Контакт администратора' }, // Новая команда
 ]);
 // Хранение сообщений пользователей для поддержки и категорий
 const userMessages = {};
@@ -143,8 +142,8 @@ bot.on('callback_query', async (query) => {
 💼 *${product.nomi}*
 
 📖 *Описание*: ${product.malumoti}
-💸 *Цена*: ${product.narxi} руб.
-✅ В наличии: *${product.soni} шт.*
+💰 *Цена*: ${product.narxi} LTC
+📦 *В наличии*: ${product.soni} шт.
                     `;
                          bot.sendPhoto(chatId, product.rasm, {
                               caption: caption,
@@ -283,7 +282,7 @@ bot.on('callback_query', async (query) => {
 🎵 *${product.nomi}*
 
 📖 *Описание*: ${product.malumoti}
-💰 *Цена*: ${product.narxi} руб.
+💰 *Цена*: ${product.narxi} LTC.
 📦 *В наличии*: ${product.soni} шт.
 🔍 *Категория*: ${product.turi}
 
@@ -354,7 +353,7 @@ bot.on('callback_query', async (query) => {
                if (product) {
                     const confirmationMessage = `
 🛒 *Ваш заказ подтвержден!*
-Вы выбрали *${product.nomi}* за *${product.narxi} руб.*
+Вы выбрали *${product.nomi}* за *${product.narxi} LTC.*
 Выберите способ оплаты:
                 `;
 
@@ -642,22 +641,6 @@ bot.onText(/\/review (\w+) (.+)/, async (msg, match) => {
           bot.sendMessage(chatId, "Ошибка при сохранении отзыва. Попробуйте снова.");
      }
 });
-// Обрабатываем команду /contact для отображения контакта администратора
-bot.on('message', (msg) => {
-     if (msg.text === '/contact') {
-          const contactMessage = `
-📞 *Контакты администратора*:
-
-Если у вас есть вопросы или предложения, свяжитесь с администратором:
-
-📱 *Телефон*: +998 94 075 13 13  
-💬 *Telegram*: [Написать в Telegram](https://t.me/alikhanov13)
-
-Мы всегда на связи и готовы помочь вам! 😊
-        `;
-          bot.sendMessage(msg.chat.id, contactMessage, { parse_mode: 'Markdown' });
-     }
-});
 
 // Функция для рекомендации товаров
 async function recommendProducts(userId) {
@@ -690,7 +673,7 @@ bot.on('message', async (msg) => {
           if (recommendations) {
                // Отправляем пользователю рекомендации
                recommendations.forEach(product => {
-                    const caption = `🎉 *Рекомендуем вам:* ${product.nomi}\n💸 Цена: ${product.narxi} руб.`;
+                    const caption = `🎉 *Рекомендуем вам:* ${product.nomi}\n💸 Цена: ${product.narxi} LTC.`;
                     bot.sendPhoto(chatId, product.rasm, { caption: caption, parse_mode: 'Markdown' });
                });
           } else {
