@@ -8,7 +8,6 @@ const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 // ID чата поддержки
 const supportChatId = 6183727519;  // Твой chat ID
 const dokonlogo = "./assets/photo_2024-10-14_20-10-29.jpg"
-const QRCode = require('qrcode'); // Убедитесь, что установлен модуль qrcode
 
 
 
@@ -88,27 +87,27 @@ bot.on('message', (msg) => {
 });
 // Хранение состояния категории пользователя
 const userCategoryState = {};
-// Обрабатываем команду /products для отображения категорий
+// Обрабатываем команду /products для отображения городов
 bot.onText(/\/products/, async (msg) => {
      try {
           // Получаем все товары с сервера
-          const response = await axios.get('https://13dokon-server.vercel.app/api/getall');
+          const response = await axios.get('http://localhost:8080/api/getall');
           const products = response.data;
 
-          // Если товары есть, начинаем с категорий
+          // Если товары есть, начинаем с городов
           if (products.length > 0) {
-               // Извлекаем уникальные категории (turi)
-               const categories = [...new Set(products.map(p => p.turi))];
+               // Извлекаем уникальные города (location)
+               const locations = [...new Set(products.map(p => p.location))];
 
-               // Формируем кнопки для категорий
-               const categoryButtons = categories.map(category => {
-                    return [{ text: category, callback_data: `category_${category}` }];
+               // Формируем кнопки для городов
+               const locationButtons = locations.map(location => {
+                    return [{ text: location, callback_data: `location_${location}` }];
                });
 
-               // Отправляем сообщение с кнопками категорий
-               bot.sendMessage(msg.chat.id, "Выберите категорию:", {
+               // Отправляем сообщение с кнопками городов
+               bot.sendMessage(msg.chat.id, "Выберите город:", {
                     reply_markup: {
-                         inline_keyboard: categoryButtons
+                         inline_keyboard: locationButtons
                     }
                });
           } else {
@@ -118,25 +117,65 @@ bot.onText(/\/products/, async (msg) => {
           bot.sendMessage(msg.chat.id, "Ошибка при получении списка товаров. Проверьте, что API работает.");
      }
 });
+
+// Обрабатываем нажатие на город
+bot.on('callback_query', async (query) => {
+     const chatId = query.message.chat.id;
+     const data = query.data;
+
+     if (data.startsWith('location_')) {
+          // Извлекаем выбранный город
+          const selectedLocation = data.split('_')[1];
+
+          try {
+               // Получаем все товары с сервера
+               const response = await axios.get('http://localhost:8080/api/getall');
+               const products = response.data;
+
+               // Фильтруем товары по выбранному городу
+               const filteredProducts = products.filter(product => product.location === selectedLocation);
+
+               // Извлекаем уникальные категории в выбранном городе
+               const categories = [...new Set(filteredProducts.map(p => p.turi))];
+
+               // Формируем кнопки для категорий
+               const categoryButtons = categories.map(category => {
+                    return [{ text: category, callback_data: `category_${selectedLocation}_${category}` }];
+               });
+
+               // Отправляем сообщение с кнопками категорий
+               bot.sendMessage(chatId, `Вы выбрали город "${selectedLocation}". Теперь выберите категорию:`, {
+                    reply_markup: {
+                         inline_keyboard: categoryButtons
+                    }
+               });
+          } catch (error) {
+               bot.sendMessage(chatId, "Ошибка при получении списка категорий. Попробуйте позже.");
+          }
+     }
+});
+
 // Обрабатываем нажатие на категорию
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
      const data = query.data;
 
      if (data.startsWith('category_')) {
-          // Извлекаем выбранную категорию
-          const selectedCategory = data.split('_')[1];
+          // Извлекаем выбранные город и категорию
+          const parts = data.split('_');
+          const selectedLocation = parts[1];
+          const selectedCategory = parts[2];
 
           try {
-               // Получаем все товары
+               // Получаем все товары с сервера
                const response = await axios.get('http://localhost:8080/api/getall');
                const products = response.data;
 
-               // Фильтруем товары по выбранной категории
-               const filteredProducts = products.filter(product => product.turi === selectedCategory);
+               // Фильтруем товары по выбранному городу и категории
+               const filteredProducts = products.filter(product => product.location === selectedLocation && product.turi === selectedCategory);
 
                if (filteredProducts.length > 0) {
-                    // Отображаем товары, относящиеся к выбранной категории
+                    // Отображаем товары, относящиеся к выбранному городу и категории
                     filteredProducts.forEach((product) => {
                          const caption = `
 💼 *${product.nomi}*
@@ -144,7 +183,8 @@ bot.on('callback_query', async (query) => {
 📖 *Описание*: ${product.malumoti}
 💰 *Цена*: ${product.narxi} LTC
 📦 *В наличии*: ${product.soni} шт.
-                    `;
+📍 *Город*: ${product.location}
+                         `;
                          bot.sendPhoto(chatId, product.rasm, {
                               caption: caption,
                               parse_mode: 'Markdown',
@@ -157,13 +197,14 @@ bot.on('callback_query', async (query) => {
                          });
                     });
                } else {
-                    bot.sendMessage(chatId, `В категории "${selectedCategory}" нет товаров.`);
+                    bot.sendMessage(chatId, `В категории "${selectedCategory}" в городе "${selectedLocation}" нет товаров.`);
                }
           } catch (error) {
                bot.sendMessage(chatId, "Ошибка при получении товаров. Попробуйте позже.");
           }
      }
 });
+
 // Хранение ID пользователей, которые отправили сообщения в техподдержку
 const userMessageInfo = {};
 // Обрабатываем команду /support для отправки сообщения в техподдержку

@@ -17,6 +17,10 @@ const InstrumentSchema = new Schema({
           type: String,
           required: true,
      },
+     location: {
+          type: String,
+          required: true,
+     },
      soni: {
           type: Number,
           required: true,
