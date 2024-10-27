@@ -279,31 +279,7 @@ bot.onText(/\/category/, (msg) => {
      bot.sendMessage(chatId, "Пожалуйста, введите название категории для поиска.");
      waitingForCategoryMessage[chatId] = true;
 });
-// Флаг для ожидания чека
-const waitingForPaymentConfirmation = {};
-// Обрабатываем загрузку чека после оплаты
-bot.on('message', (msg) => {
-     const chatId = msg.chat.id;
 
-     if (waitingForPaymentConfirmation[chatId]) {
-          if (msg.photo) {
-               bot.sendMessage(chatId, "Спасибо за чек! Мы проверим ваш платеж и свяжемся с вами.");
-               const fileId = msg.photo[msg.photo.length - 1].file_id;
-               bot.sendPhoto(supportChatId, fileId, {
-                    caption: `Получен чек от пользователя @${msg.from.username || 'без имени'} (${chatId}). Проверьте оплату.`,
-                    reply_markup: {
-                         inline_keyboard: [
-                              [{ text: '✅ Ваш платёж подтверждён', callback_data: `confirm_${chatId}` }],
-                              [{ text: '❌ Ваш платёж не подтверждён', callback_data: `decline_${chatId}` }]
-                         ]
-                    }
-               });
-               waitingForPaymentConfirmation[chatId] = false;
-          } else {
-               bot.sendMessage(chatId, "Пожалуйста, отправьте фото чека.");
-          }
-     }
-});
 /// Обрабатываем нажатие на кнопку "Подробнее" и отображение отзывов
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -349,6 +325,7 @@ bot.on('callback_query', async (query) => {
           }
      }
 });
+
 // Функция для уменьшения количества товара
 async function decreaseProductQuantity(productId, amount) {
      try {
@@ -494,7 +471,31 @@ bot.on('callback_query', async (query) => {
      }
 });
 
+// Флаг для ожидания чека
+const waitingForPaymentConfirmation = {};
+// Обрабатываем загрузку чека после оплаты
+bot.on('message', (msg) => {
+     const chatId = msg.chat.id;
 
+     if (waitingForPaymentConfirmation[chatId]) {
+          if (msg.photo) {
+               bot.sendMessage(chatId, "Спасибо за чек! Мы проверим ваш платеж и свяжемся с вами.");
+               const fileId = msg.photo[msg.photo.length - 1].file_id;
+               bot.sendPhoto(supportChatId, fileId, {
+                    caption: `Получен чек от пользователя @${msg.from.username || 'без имени'} (${chatId}). Проверьте оплату.`,
+                    reply_markup: {
+                         inline_keyboard: [
+                              [{ text: '✅ Ваш платёж подтверждён', callback_data: `confirm_${chatId}` }],
+                              [{ text: '❌ Ваш платёж не подтверждён', callback_data: `decline_${chatId}` }]
+                         ]
+                    }
+               });
+               waitingForPaymentConfirmation[chatId] = false;
+          } else {
+               bot.sendMessage(chatId, "Пожалуйста, отправьте фото чека.");
+          }
+     }
+});
 
 // Хранение успешных покупок пользователей
 const userOrders = {};
