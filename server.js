@@ -5,7 +5,7 @@ require("dotenv").config();
 const itemRoutes = require("./router/router"); // Подключение маршрутов для товаров
 
 
-const PORT = process.env.PORT || 3006;
+const PORT = process.env.PORT || 3007;
 
 // Подключаем бота (если бот использует события WebSocket или подобное)
 require("./bot");

@@ -10,7 +10,7 @@ const InstrumentSchema = new Schema({
           required: true,
      },
      malumoti: {
-          type: String,
+          type: String,  
           required: true,
      },
      turi: {

@@ -28,7 +28,7 @@ const waitingForCategoryMessage = {}; // Для категорий
 // Универсальная функция для отправки приветственного сообщения
 async function sendWelcomeMessage(chatId, userName) {
      const startMessage = `
-🎵 *Добро пожаловать в магазин звука, ${userName}!* 
+*Добро пожаловать в магазин звука, ${userName}!* 
 
 Здесь каждый найдёт свою ноту.
 
@@ -117,7 +117,6 @@ bot.onText(/\/products/, async (msg) => {
           bot.sendMessage(msg.chat.id, "Ошибка при получении списка товаров. Проверьте, что API работает.");
      }
 });
-
 // Обрабатываем нажатие на город
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -155,6 +154,7 @@ bot.on('callback_query', async (query) => {
      }
 });
 
+
 // Обрабатываем нажатие на категорию
 bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
@@ -179,8 +179,6 @@ bot.on('callback_query', async (query) => {
                     filteredProducts.forEach((product) => {
                          const caption = `
 💼 *${product.nomi}*
-
-📖 *Описание*: ${product.malumoti}
 💰 *Цена*: ${product.narxi} LTC
 📦 *В наличии*: ${product.soni} шт.
 📍 *Город*: ${product.location}
@@ -368,51 +366,55 @@ bot.on('callback_query', async (query) => {
                // Находим товар по ID
                const product = await Instrument.findById(productId);
 
-               if (product) {
-                    const confirmationMessage = `
+               if (!product) {
+                    bot.sendMessage(chatId, "Ошибка: товар не найден.");
+                    return;
+               }
+
+               // Проверяем наличие товара
+               if (product.soni <= 0) {
+                    bot.sendMessage(chatId, "К сожалению, недостаточно товара на складе.");
+                    return;
+               }
+
+               const confirmationMessage = `
 🛒 *Ваш заказ подтвержден!*
 Вы выбрали *${product.nomi}* за *${product.narxi} LTC.*
+
 Выберите способ оплаты:
-                `;
+            `;
 
-                    // Проверяем наличие товара и уменьшаем количество
-                    const success = await decreaseProductQuantity(productId, 1);
+               // Уменьшаем количество товара на складе
+               product.soni -= 1;
+               await product.save();
 
-                    if (success) {
-                         // Сохраняем заказ в базе данных
-                         const newOrder = new Order({
-                              userId: chatId,
-                              productId: product._id,
-                              productName: product.nomi,
-                              quantity: 1,
-                              price: product.narxi
-                         });
+               // Сохраняем заказ в базе данных
+               const newOrder = new Order({
+                    userId: chatId,
+                    productId: product._id,
+                    productName: product.nomi,
+                    quantity: 1,
+                    price: product.narxi,
+                    status: "Ожидает оплаты",
+               });
+               await newOrder.save();
 
-                         await newOrder.save();
-
-                         // Отправляем сообщение пользователю с выбором оплаты
-                         bot.sendMessage(chatId, confirmationMessage, {
-                              parse_mode: 'Markdown',
-                              reply_markup: {
-                                   inline_keyboard: [
-                                        [{ text: '🪙 Оплатить через Bitcoin', callback_data: `pay_btc_${productId}_${product.narxi}` }],
-                                        [{ text: '💎 Оплатить через TON', callback_data: `pay_ton_${productId}_${product.narxi}` }]
-                                   ]
-                              }
-                         });
-                    } else {
-                         bot.sendMessage(chatId, "К сожалению, недостаточно товара на складе.");
+               // Отправляем сообщение пользователю с выбором способа оплаты
+               bot.sendMessage(chatId, confirmationMessage, {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                         inline_keyboard: [
+                              [{ text: '🪙 Оплатить через LITECOIN', callback_data: `pay_btc_${productId}_${product.narxi}` }],
+                              [{ text: '💎 Оплатить через TON', callback_data: `pay_ton_${productId}_${product.narxi}` }]
+                         ]
                     }
-               } else {
-                    bot.sendMessage(chatId, "Ошибка: товар не найден.");
-               }
+               });
           } catch (error) {
+               console.error(`Ошибка при оформлении покупки: ${error}`);
                bot.sendMessage(chatId, "Ошибка при оформлении покупки. Попробуйте снова.");
           }
      }
 });
-
-
 
 // Обработка выбора метода оплаты
 bot.on('callback_query', async (query) => {
@@ -422,7 +424,7 @@ bot.on('callback_query', async (query) => {
      if (data.startsWith('pay_btc_')) {
           const parts = data.split('_');
           const amount = parts[3];
-          const litecoinAddress = "ltc1qqjz9xlguz4rxhvahgnsuwrv0parxqq5ksl7grz";
+          const litecoinAddress = "ltc1qjf2yj96ymmsglsnq2jj2sxrfj84dl7ast6rcuu";
 
           await bot.sendMessage(chatId, `
 💼 *Платеж через Litecoin*
@@ -497,6 +499,7 @@ bot.on('message', (msg) => {
      }
 });
 
+
 // Хранение успешных покупок пользователей
 const userOrders = {};
 // Функция для генерации случайного номера заказа
@@ -545,6 +548,8 @@ bot.on('callback_query', async (query) => {
           bot.sendMessage(adminChatId, `Платёж для пользователя ${userId} отклонён.`);
      }
 });
+
+
 // Обработчик команды /myorders для отображения списка покупок с кнопкой "Добавить отзыв"
 bot.onText(/\/myorders/, async (msg) => {
      const chatId = msg.chat.id;
