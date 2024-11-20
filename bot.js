@@ -228,6 +228,9 @@ bot.on('message', (msg) => {
           waitingForSupportMessage[chatId] = false;
      }
 });
+
+
+
 // Обрабатываем команду /reply для ответа пользователю
 bot.onText(/\/reply (\d+) (.+)/, (msg, match) => {
      const chatId = match[1];
@@ -271,6 +274,8 @@ bot.on('message', (msg) => {
           waitingForCategoryMessage[chatId] = false;
      }
 });
+
+
 // Обрабатываем команду /category для активации поиска по категории
 bot.onText(/\/category/, (msg) => {
      const chatId = msg.chat.id;
@@ -421,83 +426,108 @@ bot.on('callback_query', async (query) => {
      const chatId = query.message.chat.id;
      const data = query.data;
 
-     if (data.startsWith('pay_btc_')) {
-          const parts = data.split('_');
-          const amount = parts[3];
-          const litecoinAddress = "ltc1qjf2yj96ymmsglsnq2jj2sxrfj84dl7ast6rcuu";
-
-          await bot.sendMessage(chatId, `
-💼 *Платеж через Litecoin*
-━━━━━━━━━━━━━━━
-💵 **Сумма:** \`${amount} LTC\`
-📥 **Адрес:** \`${litecoinAddress}\`
-
-📝 _По завершении отправьте фото квитанции для подтверждения._
-━━━━━━━━━━━━━━━
-✨ _Будьте внимательны: проверяйте сумму и адрес._
-          `, { parse_mode: 'Markdown' });
-
-          waitingForPaymentConfirmation[chatId] = true;
-
-     } else if (data.startsWith('pay_ton_')) {
+     if (data.startsWith('pay_btc_') || data.startsWith('pay_ton_')) {
           const parts = data.split('_');
           const productId = parts[2];
+          const paymentMethod = data.startsWith('pay_btc_') ? 'LTC' : 'TON'; // Определяем метод оплаты
 
-          Instrument.findById(productId)
-               .then(async (product) => {
-                    if (product) {
-                         const tonAmount = product.ton;
-                         const tonWallet = "UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYPY";
+          try {
+               // Ищем последний заказ пользователя для указанного продукта
+               const order = await Order.findOne({ userId: chatId, productId }).sort({ createdAt: -1 });
 
-                         await bot.sendMessage(chatId, `
-💼 *TON Кошелек для оплаты*
+               if (order) {
+                    // Сохраняем метод оплаты
+                    order.paymentMethod = paymentMethod;
+                    await order.save();
+
+                    const walletAddress = paymentMethod === 'LTC'
+                         ? "ltc1qjf2yj96ymmsglsnq2jj2sxrfj84dl7ast6rcuu"
+                         : "UQBaJ2hUD7xS7U2upyTscIIlgOpAwjgNItazKnjil4vohYPY";
+
+                    bot.sendMessage(chatId, `
+💼 *Оплата через ${paymentMethod === 'LTC' ? 'Litecoin' : 'TON'}*
 ━━━━━━━━━━━━━━━
-💵 **Сумма:** \`${tonAmount} TON\`
-📥 **TON Адрес:** \`${tonWallet}\`
+📥 **Адрес:** \`${walletAddress}\`
 
 📝 _После оплаты отправьте фото квитанции для подтверждения._
 ━━━━━━━━━━━━━━━
-✨ _Проверьте адрес и сумму перед отправкой._
-                         `, { parse_mode: 'Markdown' });
+✨ _Проверьте адрес перед отправкой._
+                `, { parse_mode: 'Markdown' });
 
-                         waitingForPaymentConfirmation[chatId] = true;
-
-                    } else {
-                         await bot.sendMessage(chatId, "Ошибка: товар не найден.");
-                    }
-               })
-               .catch(error => {
-                    console.error('Ошибка при обработке платежа:', error);
-                    bot.sendMessage(chatId, "Ошибка при обработке оплаты. Попробуйте снова.");
-               });
+                    // Сохраняем пользователя в состояние ожидания чека
+                    waitingForPaymentConfirmation[chatId] = true;
+               } else {
+                    bot.sendMessage(chatId, "Ошибка: заказ не найден. Пожалуйста, попробуйте снова.");
+               }
+          } catch (error) {
+               console.error("Ошибка при обработке метода оплаты:", error);
+               bot.sendMessage(chatId, "Ошибка при обработке платежа. Попробуйте снова.");
+          }
      }
 });
 
+
+
+
+
 // Флаг для ожидания чека
 const waitingForPaymentConfirmation = {};
+
 // Обрабатываем загрузку чека после оплаты
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
      const chatId = msg.chat.id;
 
      if (waitingForPaymentConfirmation[chatId]) {
           if (msg.photo) {
-               bot.sendMessage(chatId, "Спасибо за чек! Мы проверим ваш платеж и свяжемся с вами.");
                const fileId = msg.photo[msg.photo.length - 1].file_id;
-               bot.sendPhoto(supportChatId, fileId, {
-                    caption: `Получен чек от пользователя @${msg.from.username || 'без имени'} (${chatId}). Проверьте оплату.`,
-                    reply_markup: {
-                         inline_keyboard: [
-                              [{ text: '✅ Ваш платёж подтверждён', callback_data: `confirm_${chatId}` }],
-                              [{ text: '❌ Ваш платёж не подтверждён', callback_data: `decline_${chatId}` }]
-                         ]
+
+               try {
+                    // Ищем последний заказ пользователя
+                    const order = await Order.findOne({ userId: chatId }).sort({ createdAt: -1 }).populate('productId');
+
+                    if (order && order.productId) {
+                         const product = order.productId;
+
+                         const caption = `
+📜 *Детали транзакции:*
+👤 *Покупатель*: @${msg.from.username || 'без имени'} (ID: ${chatId})
+🎵 *Товар*: ${product.nomi}
+📖 *Описание*: ${product.malumoti || 'Нет описания'}
+📦 *Количество*: ${order.quantity}
+                    `;
+
+                         // Отправляем чек и детали администратору
+                         bot.sendPhoto(supportChatId, fileId, {
+                              caption: caption,
+                              parse_mode: 'Markdown',
+                              reply_markup: {
+                                   inline_keyboard: [
+                                        [{ text: '✅ Подтвердить платёж', callback_data: `confirm_${chatId}` }],
+                                        [{ text: '❌ Отклонить платёж', callback_data: `decline_${chatId}` }]
+                                   ]
+                              }
+                         });
+
+                         // Уведомляем пользователя
+                         bot.sendMessage(chatId, "Спасибо за чек! Мы проверим ваш платёж и свяжемся с вами.");
+                    } else {
+                         bot.sendMessage(chatId, "Ошибка: заказ не найден. Пожалуйста, свяжитесь с поддержкой.");
                     }
-               });
+               } catch (error) {
+                    console.error("Ошибка при обработке чека:", error);
+                    bot.sendMessage(chatId, "Ошибка при обработке чека. Пожалуйста, попробуйте снова.");
+               }
+
+               // Сбрасываем ожидание чека
                waitingForPaymentConfirmation[chatId] = false;
           } else {
                bot.sendMessage(chatId, "Пожалуйста, отправьте фото чека.");
           }
      }
 });
+
+
+
 
 
 // Хранение успешных покупок пользователей
@@ -508,6 +538,10 @@ function generateOrderNumber() {
      const randomNum = Math.floor(100000 + Math.random() * 900000);
      return `${prefix}-${randomNum}`;
 }
+
+// Хранение состояния для отправки пункта выдачи
+const waitingForPickupInfo = {};
+
 // Обрабатываем нажатие на кнопку подтверждения или отклонения платежа
 bot.on('callback_query', async (query) => {
      const data = query.data;
@@ -517,35 +551,50 @@ bot.on('callback_query', async (query) => {
           const userId = data.split('_')[1];
           const orderNumber = generateOrderNumber();
 
-          bot.sendMessage(userId, `✅ Ваш платёж подтверждён. Номер вашего заказа: *${orderNumber}*`, { parse_mode: 'Markdown' });
-          bot.sendMessage(adminChatId, `Платёж для пользователя ${userId} подтверждён. Номер заказа: ${orderNumber}`);
+          // Уведомляем пользователя о подтверждении платежа
+          bot.sendMessage(userId, `
+✅ Ваш платёж подтверждён.
+📦 Номер вашего заказа: *${orderNumber}*.
 
-          const purchasedProduct = {
-               orderNumber,
-               productId: data.split('_')[1],
-               productName: "Название продукта",
-               date: new Date().toLocaleDateString()
-          };
+📍 Ожидайте информацию о пункте выдачи вашего заказа. Мы свяжемся с вами в ближайшее время. Спасибо за ваш выбор!`, { parse_mode: 'Markdown' });
 
-          if (!userOrders[userId]) {
-               userOrders[userId] = [];
-          }
-          userOrders[userId].push(purchasedProduct);
+          // Уведомляем администратора о подтверждении
+          bot.sendMessage(adminChatId, `Платёж для пользователя ${userId} подтверждён. Номер заказа: ${orderNumber}\n\n📩 Введите информацию о пункте выдачи, чтобы отправить её пользователю.`);
 
-          const pickupMessage = `
-🎉 *Ваш заказ готов к получению!*
-📦 *Номер заказа*: ${orderNumber}
-🏠 *Место получения*: ул. Примерная, д. 123, Доставка Пункт #4
-🕒 *Часы работы*: Пн-Пт с 10:00 до 19:00
-
-Пожалуйста, покажите этот номер заказа при получении. Спасибо за покупку!
-        `;
-          bot.sendMessage(userId, pickupMessage, { parse_mode: 'Markdown' });
+          // Сохраняем состояние, чтобы ожидать пункт выдачи
+          waitingForPickupInfo[adminChatId] = { userId, orderNumber };
 
      } else if (data.startsWith('decline_')) {
           const userId = data.split('_')[1];
+
+          // Уведомляем пользователя об отклонении платежа
           bot.sendMessage(userId, "❌ Ваш платёж не подтверждён. Пожалуйста, проверьте данные и попробуйте снова.");
+
+          // Уведомляем администратора об отклонении
           bot.sendMessage(adminChatId, `Платёж для пользователя ${userId} отклонён.`);
+     }
+});
+
+// Обрабатываем текстовые сообщения администратора для пункта выдачи
+bot.on('message', async (msg) => {
+     const adminChatId = msg.chat.id;
+
+     // Проверяем, ожидается ли от администратора информация о пункте выдачи
+     if (waitingForPickupInfo[adminChatId]) {
+          const { userId, orderNumber } = waitingForPickupInfo[adminChatId];
+          const pickupInfo = msg.text; // Текст пункта выдачи
+
+          // Отправляем информацию пользователю
+          bot.sendMessage(userId, `🎉 *Ваш заказ готов к получению!*\n\n📦 Номер заказа: *${orderNumber}*\n\n${pickupInfo}`, { parse_mode: 'Markdown' })
+               .then(() => {
+                    // Уведомляем администратора об успешной отправке
+                    bot.sendMessage(adminChatId, `✅ Информация о пункте выдачи отправлена пользователю ${userId}.`);
+                    delete waitingForPickupInfo[adminChatId]; // Сбрасываем состояние
+               })
+               .catch((error) => {
+                    console.error(`Ошибка при отправке информации о пункте выдачи пользователю ${userId}:`, error);
+                    bot.sendMessage(adminChatId, `❌ Ошибка при отправке информации пользователю ${userId}. Проверьте ID.`);
+               });
      }
 });
 
