@@ -91,7 +91,7 @@ const userCategoryState = {};
 bot.onText(/\/products/, async (msg) => {
      try {
           // Получаем все товары с сервера
-          const response = await axios.get('http://localhost:8080/api/getall');
+          const response = await axios.get('https://13dokon-bot-server.vercel.app/api/getall');
           const products = response.data;
 
           // Если товары есть, начинаем с городов
@@ -128,7 +128,7 @@ bot.on('callback_query', async (query) => {
 
           try {
                // Получаем все товары с сервера
-               const response = await axios.get('http://localhost:8080/api/getall');
+               const response = await axios.get('https://13dokon-bot-server.vercel.app/api/getall');
                const products = response.data;
 
                // Фильтруем товары по выбранному городу
@@ -168,7 +168,7 @@ bot.on('callback_query', async (query) => {
 
           try {
                // Получаем все товары с сервера
-               const response = await axios.get('http://localhost:8080/api/getall');
+               const response = await axios.get('https://13dokon-bot-server.vercel.app/api/getall');
                const products = response.data;
 
                // Фильтруем товары по выбранному городу и категории
@@ -246,7 +246,7 @@ bot.on('message', (msg) => {
      if (waitingForCategoryMessage[chatId] && messageText && !messageText.startsWith('/')) {
           const category = messageText.toLowerCase();
 
-          axios.get('http://localhost:8080/api/getall')
+          axios.get('https://13dokon-bot-server.vercel.app/api/getall')
                .then(response => {
                     const products = response.data.filter(p => p.turi.toLowerCase() === category);
 
@@ -741,7 +741,7 @@ bot.onText(/\/review (\w+) (.+)/, async (msg, match) => {
 // Функция для рекомендации товаров
 async function recommendProducts(userId) {
      try {
-          const response = await axios.get('http://localhost:8080/api/getall');
+          const response = await axios.get('https://13dokon-bot-server.vercel.app/api/getall');
           const products = response.data;
 
           // Логика для фильтрации товаров (например, те же категории, что и предыдущие покупки)
